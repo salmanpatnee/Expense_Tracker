@@ -8,6 +8,8 @@ const name = ref('');
 const editingId = ref(null);
 const formError = ref('');
 const confirmingDeleteId = ref(null);
+const deleteError = ref('');
+const popoverAbove = ref(false);
 
 function swatchFor(index) {
     return PALETTE[index % PALETTE.length];
@@ -47,18 +49,27 @@ async function submitForm() {
     }
 }
 
-function askDelete(id) {
+function askDelete(event, id) {
     confirmingDeleteId.value = id;
+    deleteError.value = '';
+    // Flip the popover above the button when it would overflow past the bottom of the viewport.
+    const rect = event.currentTarget.getBoundingClientRect();
+    popoverAbove.value = rect.bottom + 90 > window.innerHeight;
 }
 
 function cancelDelete() {
     confirmingDeleteId.value = null;
+    deleteError.value = '';
 }
 
 async function confirmDelete(id) {
-    await api.delete(`/categories/${id}`);
-    confirmingDeleteId.value = null;
-    await fetchCategories();
+    try {
+        await api.delete(`/categories/${id}`);
+        confirmingDeleteId.value = null;
+        await fetchCategories();
+    } catch (error) {
+        deleteError.value = error.response?.data?.message ?? 'Something went wrong. Please try again.';
+    }
 }
 
 onMounted(fetchCategories);
@@ -117,32 +128,47 @@ onMounted(fetchCategories);
                     <button
                         type="button"
                         class="rounded-md border border-danger px-3 py-1 font-body text-small font-semibold text-danger"
-                        @click="askDelete(category.id)"
+                        @click="askDelete($event, category.id)"
                     >
                         Delete
                     </button>
 
                     <div
                         v-if="confirmingDeleteId === category.id"
-                        class="absolute right-0 top-full z-10 mt-2 w-56 rounded-md border border-border bg-danger-bg p-3 shadow-md"
+                        class="absolute right-0 z-10 w-56 rounded-md border border-border bg-danger-bg p-3 shadow-md"
+                        :class="popoverAbove ? 'bottom-full mb-2' : 'top-full mt-2'"
                     >
-                        <p class="mb-2 font-body text-small text-text">Delete "{{ category.name }}"?</p>
-                        <div class="flex justify-end gap-2">
-                            <button
-                                type="button"
-                                class="rounded-sm px-2 py-1 font-body text-small text-muted"
-                                @click="cancelDelete"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                type="button"
-                                class="rounded-sm bg-danger px-2 py-1 font-body text-small font-semibold text-white"
-                                @click="confirmDelete(category.id)"
-                            >
-                                Confirm
-                            </button>
-                        </div>
+                        <template v-if="deleteError">
+                            <p class="mb-2 font-body text-small text-danger">{{ deleteError }}</p>
+                            <div class="flex justify-end">
+                                <button
+                                    type="button"
+                                    class="rounded-sm px-2 py-1 font-body text-small text-muted"
+                                    @click="cancelDelete"
+                                >
+                                    Dismiss
+                                </button>
+                            </div>
+                        </template>
+                        <template v-else>
+                            <p class="mb-2 font-body text-small text-text">Delete "{{ category.name }}"?</p>
+                            <div class="flex justify-end gap-2">
+                                <button
+                                    type="button"
+                                    class="rounded-sm px-2 py-1 font-body text-small text-muted"
+                                    @click="cancelDelete"
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    type="button"
+                                    class="rounded-sm bg-danger px-2 py-1 font-body text-small font-semibold text-white"
+                                    @click="confirmDelete(category.id)"
+                                >
+                                    Confirm
+                                </button>
+                            </div>
+                        </template>
                     </div>
                 </div>
             </li>

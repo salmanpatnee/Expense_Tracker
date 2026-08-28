@@ -8,6 +8,7 @@ const categories = ref([]);
 const totals = ref([]);
 const confirmingDeleteId = ref(null);
 const formError = ref('');
+const popoverAbove = ref(false);
 
 function today() {
     return new Date().toISOString().slice(0, 10);
@@ -48,7 +49,13 @@ async function submitForm() {
     formError.value = '';
 
     try {
-        await api.post('/expenses', form.value);
+        // Round to 2 decimals client-side so what's shown matches what's saved,
+        // rather than letting the decimal(10,2) column round silently on insert.
+        const payload = {
+            ...form.value,
+            amount: Math.round(Number(form.value.amount) * 100) / 100,
+        };
+        await api.post('/expenses', payload);
         resetForm();
         await Promise.all([fetchExpenses(), fetchTotals()]);
     } catch (error) {
@@ -57,8 +64,11 @@ async function submitForm() {
     }
 }
 
-function askDelete(id) {
+function askDelete(event, id) {
     confirmingDeleteId.value = id;
+    // Flip the popover above the button when it would overflow past the bottom of the viewport.
+    const rect = event.currentTarget.getBoundingClientRect();
+    popoverAbove.value = rect.bottom + 70 > window.innerHeight;
 }
 
 function cancelDelete() {
@@ -84,60 +94,67 @@ onMounted(() => {
 
 <template>
     <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="lg:col-span-2">
-            <form @submit.prevent="submitForm" class="mb-6 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start">
-                <div>
-                    <input
-                        v-model="form.date"
-                        type="date"
-                        required
-                        class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
-                    />
-                </div>
+        <form
+            @submit.prevent="submitForm"
+            class="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:items-start lg:order-1 lg:col-span-2"
+        >
+            <div>
+                <input
+                    v-model="form.date"
+                    type="date"
+                    required
+                    class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
+                />
+            </div>
 
-                <div>
-                    <select
-                        v-model="form.category_id"
-                        required
-                        class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
-                    >
-                        <option value="" disabled>Select a category</option>
-                        <option v-for="category in categories" :key="category.id" :value="category.id">
-                            {{ category.name }}
-                        </option>
-                    </select>
-                </div>
+            <div>
+                <select
+                    v-model="form.category_id"
+                    required
+                    class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
+                >
+                    <option value="" disabled>Select a category</option>
+                    <option v-for="category in categories" :key="category.id" :value="category.id">
+                        {{ category.name }}
+                    </option>
+                </select>
+            </div>
 
-                <div>
-                    <input
-                        v-model="form.description"
-                        type="text"
-                        placeholder="Description"
-                        class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
-                    />
-                </div>
+            <div>
+                <input
+                    v-model="form.description"
+                    type="text"
+                    placeholder="Description"
+                    class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
+                />
+            </div>
 
-                <div>
-                    <input
-                        v-model="form.amount"
-                        type="number"
-                        step="0.01"
-                        min="0.01"
-                        placeholder="Amount"
-                        class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
-                    />
-                </div>
+            <div>
+                <input
+                    v-model="form.amount"
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    placeholder="Amount"
+                    class="w-full rounded-sm border border-border px-3 py-2 font-body text-body focus:outline-none focus:ring-2 focus:ring-gold"
+                />
+            </div>
 
-                <div class="sm:col-span-2">
-                    <p v-if="formError" class="mb-2 font-body text-small text-danger">{{ formError }}</p>
-                    <button type="submit" class="rounded-md bg-ink px-4 py-2 font-body font-semibold text-white">
-                        Add expense
-                    </button>
-                </div>
-            </form>
+            <div class="sm:col-span-2">
+                <p v-if="formError" class="mb-2 font-body text-small text-danger">{{ formError }}</p>
+                <button type="submit" class="rounded-md bg-ink px-4 py-2 font-body font-semibold text-white">
+                    Add expense
+                </button>
+            </div>
+        </form>
 
-            <div class="rounded-lg border border-border">
-                <table class="w-full">
+        <div class="rounded-lg border border-border bg-surface p-4 shadow-sm lg:order-2 lg:row-span-2">
+            <h2 class="mb-4 font-display text-h3 font-semibold text-text">Spending by category</h2>
+            <ExpensesChart :totals="totals" />
+        </div>
+
+        <div class="rounded-lg border border-border lg:order-3 lg:col-span-2">
+            <table class="w-full">
                     <thead>
                         <tr class="border-b border-border bg-bg">
                             <th class="px-4 py-2 text-left font-body text-small font-semibold text-muted">Date</th>
@@ -159,14 +176,15 @@ onMounted(() => {
                                 <button
                                     type="button"
                                     class="rounded-md border border-danger px-3 py-1 font-body text-small font-semibold text-danger"
-                                    @click="askDelete(expense.id)"
+                                    @click="askDelete($event, expense.id)"
                                 >
                                     Delete
                                 </button>
 
                                 <div
                                     v-if="confirmingDeleteId === expense.id"
-                                    class="absolute right-4 top-full z-10 mt-2 w-56 rounded-md border border-border bg-danger-bg p-3 text-left shadow-md"
+                                    class="absolute right-4 z-10 w-56 rounded-md border border-border bg-danger-bg p-3 text-left shadow-md"
+                                    :class="popoverAbove ? 'bottom-full mb-2' : 'top-full mt-2'"
                                 >
                                     <p class="mb-2 font-body text-small text-text">Delete this expense?</p>
                                     <div class="flex justify-end gap-2">
@@ -196,12 +214,6 @@ onMounted(() => {
                         </tr>
                     </tbody>
                 </table>
-            </div>
-        </div>
-
-        <div class="rounded-lg border border-border bg-surface p-4 shadow-sm">
-            <h2 class="mb-4 font-display text-h3 font-semibold text-text">Spending by category</h2>
-            <ExpensesChart :totals="totals" />
         </div>
     </div>
 </template>

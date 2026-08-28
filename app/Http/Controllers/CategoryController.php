@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreCategoryRequest;
 use App\Http\Requests\UpdateCategoryRequest;
 use App\Models\Category;
+use Illuminate\Database\QueryException;
 
 class CategoryController extends Controller
 {
@@ -39,7 +40,14 @@ class CategoryController extends Controller
      */
     public function destroy(Category $category)
     {
-        $category->delete();
+        try {
+            $category->delete();
+        } catch (QueryException $e) {
+            // restrictOnDelete() on expenses.category_id throws here when expenses still reference this category.
+            return response()->json([
+                'message' => 'This category has expenses logged against it and can\'t be deleted.',
+            ], 422);
+        }
 
         return response()->noContent();
     }

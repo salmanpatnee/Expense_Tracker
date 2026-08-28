@@ -13,6 +13,10 @@ const props = defineProps({
     },
 });
 
+// All-zero totals (categories exist, but nothing's been spent yet) should read as
+// "no data", not as a six-slice doughnut of empty wedges.
+const hasData = computed(() => props.totals.some((row) => Number(row.total) > 0));
+
 const chartData = computed(() => ({
     labels: props.totals.map((row) => row.name),
     datasets: [
@@ -48,7 +52,7 @@ const chartOptions = {
 
 <template>
     <div>
-        <Doughnut v-if="totals.length" :data="chartData" :options="chartOptions" />
+        <Doughnut v-if="hasData" :data="chartData" :options="chartOptions" />
         <p v-else class="text-center font-body text-small text-muted">No data yet.</p>
     </div>
 </template>
