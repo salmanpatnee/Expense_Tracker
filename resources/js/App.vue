@@ -1,5 +1,6 @@
 <script setup>
 import { ref } from 'vue';
+import CategoriesPanel from './components/CategoriesPanel.vue';
 
 const activeTab = ref('expenses');
 </script>
@@ -34,7 +35,7 @@ const activeTab = ref('expenses');
                 <p class="font-body text-muted">Expenses panel — coming in Phase 4.</p>
             </section>
             <section v-else class="rounded-lg border border-border bg-surface p-6 shadow-sm">
-                <p class="font-body text-muted">Categories panel — coming in Phase 2.</p>
+                <CategoriesPanel />
             </section>
         </main>
     </div>
