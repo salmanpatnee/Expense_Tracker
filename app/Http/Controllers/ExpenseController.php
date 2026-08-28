@@ -14,7 +14,7 @@ class ExpenseController extends Controller
      */
     public function index()
     {
-        return Expense::orderBy('date', 'desc')->get();
+        return Expense::with('category')->orderBy('date', 'desc')->get();
     }
 
     /**
